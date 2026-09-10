@@ -27,6 +27,10 @@ import type {
   StrategyComparisonRequest,
   StrategyComparisonResponse,
   StrategyAnalysisResponse,
+  UndercutRequest,
+  UndercutResponse,
+  OvercutRequest,
+  OvercutResponse,
 } from "../types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -155,5 +159,15 @@ export const api = {
   championshipProjection: (seasonId: number, simulations = 20) =>
     request<ChampionshipProjectionResponse>(`/api/seasons/${seasonId}/projection?simulations=${simulations}`, {
       method: "POST",
+    }),
+  analyzeUndercut: (body: UndercutRequest) =>
+    request<UndercutResponse>("/api/strategy/undercut", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  analyzeOvercut: (body: OvercutRequest) =>
+    request<OvercutResponse>("/api/strategy/overcut", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 };

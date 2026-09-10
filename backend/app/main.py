@@ -16,6 +16,12 @@ from app.routes.races import router as races_router
 from app.routes.seasons import router as seasons_router
 from app.routes.simulation import router as simulation_router
 from app.routes.strategy import router as strategy_router
+from app.routes import undercut
+from app.routes import overcut
+from app.routes import pit_window
+from app.routes import opponent_prediction
+from app.routes import traffic
+from app.routes import strategy_risk
 
 
 @asynccontextmanager
@@ -47,6 +53,12 @@ app.include_router(race_engineer_router)
 app.include_router(live_race_router)
 app.include_router(multi_race_router)
 app.include_router(seasons_router)
+app.include_router(undercut.router)
+app.include_router(overcut.router)
+app.include_router(pit_window.router)
+app.include_router(opponent_prediction.router)
+app.include_router(traffic.router)
+app.include_router(strategy_risk.router)
 
 
 @app.get("/health")

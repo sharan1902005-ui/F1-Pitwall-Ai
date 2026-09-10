@@ -541,6 +541,73 @@ export interface ChampionshipProjectionEntry {
   expected_final_position: number;
 }
 
+export type StrategyTyreCompound = TyreCompound;
+
+export interface DriverUndercutRequest {
+  driver_name: string;
+  position: number;
+  compound: TyreCompound;
+  tyre_age: number;
+  gap_to_driver_ahead_seconds: number;
+  current_lap: number;
+  base_lap_time_seconds: number;
+  degradation_per_lap: number;
+}
+
+export interface UndercutRequest {
+  attacker: DriverUndercutRequest;
+  defender: DriverUndercutRequest;
+  pit_lane_time_loss_seconds: number;
+  new_compound: TyreCompound;
+  defender_stays_out_laps: number;
+}
+
+export interface UndercutResponse {
+  undercut_available: boolean;
+  projected_gain_seconds: number;
+  projected_gap_after_cycle_seconds: number;
+  projected_position: number;
+  confidence: number;
+  recommendation: string;
+  recommended_compound: TyreCompound;
+  analysis_laps: number;
+}
+
+export interface OvercutOptionResponse {
+  stay_out_laps: number;
+  projected_advantage_seconds: number;
+  projected_gap_after_cycle_seconds: number;
+}
+
+export interface DriverOvercutRequest {
+  driver_name: string;
+  position: number;
+  compound: TyreCompound;
+  tyre_age: number;
+  gap_to_driver_ahead_seconds: number;
+  current_lap: number;
+  base_lap_time_seconds: number;
+  degradation_per_lap: number;
+}
+
+export interface OvercutRequest {
+  driver: DriverOvercutRequest;
+  opponent: DriverOvercutRequest;
+  pit_lane_time_loss_seconds: number;
+  max_stay_out_laps: number;
+}
+
+export interface OvercutResponse {
+  overcut_available: boolean;
+  best_stay_out_laps: number;
+  projected_advantage_seconds: number;
+  projected_gap_after_cycle_seconds: number;
+  projected_position: number;
+  confidence: number;
+  recommendation: string;
+  options: OvercutOptionResponse[];
+}
+
 export interface ChampionshipProjectionResponse {
   simulations: number;
   methodology: string;
