@@ -608,6 +608,124 @@ export interface OvercutResponse {
   options: OvercutOptionResponse[];
 }
 
+export interface PitWindowDriverRequest {
+  driver_name: string;
+  current_lap: number;
+  total_laps: number;
+  position: number;
+  compound: TyreCompound;
+  tyre_age: number;
+  base_lap_time_seconds: number;
+  degradation_per_lap: number;
+  gap_to_driver_ahead_seconds: number;
+}
+
+export interface PitWindowRequest {
+  driver: PitWindowDriverRequest;
+  pit_lane_time_loss_seconds: number;
+  earliest_pit_lap: number;
+  latest_pit_lap: number;
+  new_compound: TyreCompound;
+}
+
+export interface PitWindowOptionResponse {
+  pit_lap: number;
+  projected_race_time_seconds: number;
+  projected_gain_seconds: number;
+}
+
+export interface PitWindowResponse {
+  earliest_lap: number;
+  optimal_lap: number;
+  latest_lap: number;
+  recommended_compound: TyreCompound;
+  projected_gain_seconds: number;
+  projected_race_time_seconds: number;
+  confidence: number;
+  recommendation: string;
+  options: PitWindowOptionResponse[];
+}
+
+export interface OpponentPredictionRequest {
+  driver_name: string;
+  position: number;
+  compound: TyreCompound;
+  tyre_age: number;
+  current_lap: number;
+  total_laps: number;
+  base_lap_time_seconds: number;
+  degradation_per_lap: number;
+  pit_stops_completed: number;
+  weather_risk: number;
+  prediction_window_laps: number;
+}
+
+export interface PitProbabilityResponse {
+  lap: number;
+  probability: number;
+}
+
+export interface OpponentPredictionResponse {
+  driver_name: string;
+  most_likely_pit_lap: number;
+  most_likely_probability: number;
+  confidence: number;
+  recommendation: string;
+  predictions: PitProbabilityResponse[];
+}
+
+export interface TrafficDriverRequest {
+  driver_name: string;
+  current_position: number;
+  current_lap: number;
+  base_lap_time_seconds: number;
+}
+
+export interface CarAheadRequest {
+  driver_name: string;
+  gap_seconds: number;
+  pace_delta_seconds: number;
+  overtaking_difficulty: number;
+}
+
+export interface TrafficRequest {
+  driver: TrafficDriverRequest;
+  car_ahead: CarAheadRequest;
+  laps_in_traffic: number;
+}
+
+export interface TrafficResponse {
+  dirty_air_penalty_seconds: number;
+  projected_traffic_loss_seconds: number;
+  overtaking_difficulty: number;
+  traffic_risk: string;
+  recommendation: string;
+}
+
+export type StrategyRiskTrafficLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export interface StrategyRiskRequest {
+  weather_risk: number;
+  traffic_risk: StrategyRiskTrafficLevel;
+  tyre_age: number;
+  estimated_tyre_life: number;
+  degradation_per_lap: number;
+  safety_car_probability: number;
+  opponent_pit_probability: number;
+  pit_lane_time_loss_seconds: number;
+}
+
+export interface StrategyRiskResponse {
+  overall_risk_score: number;
+  risk_level: string;
+  weather_risk_score: number;
+  traffic_risk_score: number;
+  tyre_risk_score: number;
+  safety_car_risk_score: number;
+  opponent_risk_score: number;
+  recommendation: string;
+}
+
 export interface ChampionshipProjectionResponse {
   simulations: number;
   methodology: string;

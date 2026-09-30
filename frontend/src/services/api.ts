@@ -31,6 +31,14 @@ import type {
   UndercutResponse,
   OvercutRequest,
   OvercutResponse,
+  PitWindowRequest,
+  PitWindowResponse,
+  OpponentPredictionRequest,
+  OpponentPredictionResponse,
+  TrafficRequest,
+  TrafficResponse,
+  StrategyRiskRequest,
+  StrategyRiskResponse,
 } from "../types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
@@ -167,6 +175,26 @@ export const api = {
     }),
   analyzeOvercut: (body: OvercutRequest) =>
     request<OvercutResponse>("/api/strategy/overcut", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  analyzePitWindow: (body: PitWindowRequest) =>
+    request<PitWindowResponse>("/api/strategy/pit-window", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  predictOpponent: (body: OpponentPredictionRequest) =>
+    request<OpponentPredictionResponse>("/api/strategy/opponent-prediction", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  analyzeTraffic: (body: TrafficRequest) =>
+    request<TrafficResponse>("/api/strategy/traffic", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  analyzeStrategyRisk: (body: StrategyRiskRequest) =>
+    request<StrategyRiskResponse>("/api/strategy/risk", {
       method: "POST",
       body: JSON.stringify(body),
     }),
