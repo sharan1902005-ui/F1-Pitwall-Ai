@@ -13,6 +13,7 @@ from app.routes.live_race import router as live_race_router
 from app.routes.multi_race import router as multi_race_router
 from app.routes.race_engineer import router as race_engineer_router
 from app.routes.races import router as races_router
+from app.routes.f1_reference import router as f1_reference_router
 from app.routes.seasons import router as seasons_router
 from app.routes.simulation import router as simulation_router
 from app.routes.strategy import router as strategy_router
@@ -49,6 +50,7 @@ app.include_router(simulation_router)
 app.include_router(strategy_router)
 app.include_router(circuits_router)
 app.include_router(races_router)
+app.include_router(f1_reference_router)
 app.include_router(race_engineer_router)
 app.include_router(live_race_router)
 app.include_router(multi_race_router)

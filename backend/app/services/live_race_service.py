@@ -197,7 +197,52 @@ class LiveRaceService:
             next_lap,
             weather,
             previous_weather,
+            previous_events=state.events,
         )
+        tyre_age_next = state.tyre_age + 1
+        tyre_life_pct = self.tyre_model.life_percent(
+            state.current_compound,
+            tyre_age_next,
+        )
+        remaining = state.total_laps - next_lap
+
+        # --- Crossover state machine ---
+        crossover_events, new_crossover_active = self.event_engine.crossover_state_events(
+            lap_number=next_lap,
+            track_wetness=weather.track_wetness,
+            tyre_compound=state.current_compound.value,
+            crossover_active=state.crossover_active,
+        )
+        # Suppress TYRE_CROSSOVER_APPROACHING if already emitted this lap
+        all_prev = state.events + events
+        crossover_events = [
+            e for e in crossover_events
+            if e.event_type != RaceEventType.TYRE_CROSSOVER_APPROACHING
+            or self.event_engine._can_emit(all_prev, RaceEventType.TYRE_CROSSOVER_APPROACHING, next_lap)
+        ]
+        events.extend(crossover_events)
+        state.crossover_active = new_crossover_active
+
+        # --- Degradation state machine ---
+        deg_events, new_warned, new_critical = self.event_engine.degradation_state_events(
+            lap_number=next_lap,
+            tyre_compound=state.current_compound.value,
+            tyre_age=tyre_age_next,
+            tyre_life_percent=tyre_life_pct,
+            degradation_warned=state.degradation_warned,
+            degradation_critical=state.degradation_critical,
+        )
+        events.extend(deg_events)
+        state.degradation_warned = new_warned
+        state.degradation_critical = new_critical
+
+        # --- Pit window events ---
+        pit_events = self.event_engine.pit_window_events(
+            lap_number=next_lap,
+            remaining_laps=remaining,
+            previous_events=state.events + events,
+        )
+        events.extend(pit_events)
         self._append_events(state, events)
         race_control = self.event_engine.race_control_status(events)
         state.race_status = RaceStatus(race_control) if race_control else RaceStatus.RUNNING
@@ -308,6 +353,12 @@ class LiveRaceService:
             state.current_compound = action.compound
             state.tyre_age = 0
             state.pit_stop_count += 1
+            # Reset per-stint state-machine flags so degradation and crossover
+            # events fire correctly on the new set of tyres.
+            state.degradation_warned = False
+            state.degradation_critical = False
+            # Crossover state depends on wetness, not tyre age — keep it as-is
+            # so the crossover condition is re-evaluated on the next lap.
             followed = (
                 state.recommendation is not None
                 and state.recommendation.recommended_compound == action.compound
@@ -334,11 +385,25 @@ class LiveRaceService:
             return round(base * self.event_engine.vsc_pit_loss_multiplier, 6)
         return base
 
-    def _decision_impact(self, state: LiveRaceState, action: LiveRaceAction) -> float:
-        """Estimate action impact from deterministic tyre penalty comparison."""
+    def _decision_impact(self, state: LiveRaceState, action: LiveRaceAction) -> float | None:
+        """Estimate action impact from deterministic tyre penalty comparison.
+
+        Returns None when the comparison is not calculable (no recommendation,
+        no recommended compound, or recommended compound equals current compound
+        with no pit lap — i.e. a pure stay-out strategy where both sides are
+        identical).  A genuine zero may be returned when the penalties are equal.
+        """
         if state.recommendation is None or state.recommendation.recommended_compound is None:
-            return 0.0
+            return None
         recommended = state.recommendation.recommended_compound
+        # If the recommendation is to stay out on the current compound and no
+        # pit lap is suggested, there is no counterfactual to compare against.
+        if (
+            recommended == state.current_compound
+            and state.recommendation.recommended_pit_lap is None
+            and action.action == LiveActionType.STAY_OUT
+        ):
+            return None
         current_penalty = self.tyre_model.performance_penalty(
             state.current_compound,
             state.tyre_age + 1,
@@ -350,7 +415,10 @@ class LiveRaceService:
             state.track_wetness,
         )
         if action.action == LiveActionType.STAY_OUT:
-            return round(max(0.0, current_penalty - recommended_penalty), 6)
+            # Positive = staying out costs more than pitting would have.
+            diff = current_penalty - recommended_penalty
+            return round(diff, 6) if diff != 0.0 else 0.0
+        # PIT or FOLLOW_RECOMMENDATION: negative = pitting was cheaper.
         return round(recommended_penalty - current_penalty, 6)
 
     def _should_recalculate(
@@ -368,33 +436,36 @@ class LiveRaceService:
                 RaceEventType.SAFETY_CAR,
                 RaceEventType.VIRTUAL_SAFETY_CAR,
                 RaceEventType.RAIN_INCREASE,
+                RaceEventType.RAIN_DECREASE,
                 RaceEventType.DRYING_TRACK,
+                RaceEventType.TYRE_CROSSOVER_REACHED,
+                RaceEventType.TYRE_CROSSOVER_CLEARED,
+                RaceEventType.CRITICAL_TYRE_WEAR,
+                RaceEventType.PIT_WINDOW_OPEN,
+                RaceEventType.PIT_WINDOW_CLOSING,
             }
             for event in events
         ):
             return True
+        # Fire once when tyre-age threshold is first crossed this stint.
         max_life = self.tyre_model.characteristics[state.current_compound].max_useful_life_laps
-        if state.tyre_age >= int(max_life * 0.9):
-            return True
-        if state.track_wetness >= 0.45 and state.current_compound in {
-            TyreCompound.SOFT,
-            TyreCompound.MEDIUM,
-            TyreCompound.HARD,
-        }:
-            state.events.append(
-                RaceControlEvent(
-                    event_type=RaceEventType.TYRE_CROSSOVER,
-                    lap=state.current_lap,
-                    active=True,
-                    reason="SIMULATED STRATEGY - wet tyre crossover pressure detected",
-                )
-            )
+        threshold = int(max_life * 0.9)
+        if state.tyre_age >= threshold and (state.tyre_age - 1) < threshold:
             return True
         return False
 
     def _recalculate_strategy(self, state: LiveRaceState, reason: str) -> None:
-        """Refresh strategy and grounded recommendation."""
-        analysis = self.strategy_engine.analyze(state.race_config)
+        """Refresh strategy and grounded recommendation using current race state."""
+        # Build a config that reflects the current compound and remaining fuel so
+        # the strategy engine reasons from the actual live state, not the original
+        # starting values.
+        current_config = state.race_config.model_copy(
+            update={
+                "starting_compound": state.current_compound,
+                "starting_fuel_kg": state.fuel_remaining_kg,
+            }
+        )
+        analysis = self.strategy_engine.analyze(current_config)
         state.strategy = analysis.recommended_strategy
         if state.strategy is None:
             return
@@ -412,7 +483,7 @@ class LiveRaceService:
             recent_lap_times=[lap.lap_time_seconds for lap in state.history[-3:]],
         )
         state.recommendation = self.race_engineer.explain_strategy(
-            state.race_config,
+            current_config,
             state.strategy,
             context,
         )

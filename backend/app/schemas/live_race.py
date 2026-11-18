@@ -36,7 +36,22 @@ class RaceEventType(str, Enum):
     RAIN_INCREASE = "RAIN_INCREASE"
     RAIN_DECREASE = "RAIN_DECREASE"
     TRACK_TEMPERATURE_CHANGE = "TRACK_TEMPERATURE_CHANGE"
-    TYRE_CROSSOVER = "TYRE_CROSSOVER"
+    TRACK_TEMP_RISING = "TRACK_TEMP_RISING"
+    TRACK_TEMP_FALLING = "TRACK_TEMP_FALLING"
+    HOT_TRACK = "HOT_TRACK"
+    # Tyre crossover state machine
+    TYRE_CROSSOVER = "TYRE_CROSSOVER"                          # legacy / entering
+    TYRE_CROSSOVER_APPROACHING = "TYRE_CROSSOVER_APPROACHING"  # wetness 0.30–0.45
+    TYRE_CROSSOVER_REACHED = "TYRE_CROSSOVER_REACHED"          # wetness ≥ 0.45
+    TYRE_CROSSOVER_CLEARED = "TYRE_CROSSOVER_CLEARED"          # wetness fell below exit
+    # Tyre degradation state machine
+    HIGH_TYRE_DEGRADATION_RISK = "HIGH_TYRE_DEGRADATION_RISK"  # legacy
+    DEGRADATION_WARNING = "DEGRADATION_WARNING"                # life ≤ 40%
+    CRITICAL_TYRE_WEAR = "CRITICAL_TYRE_WEAR"                  # life ≤ 15%
+    TYRE_STATE_RECOVERED = "TYRE_STATE_RECOVERED"              # after pit stop
+    # Pit strategy
+    PIT_WINDOW_OPEN = "PIT_WINDOW_OPEN"
+    PIT_WINDOW_CLOSING = "PIT_WINDOW_CLOSING"
 
 
 class LiveRaceAction(BaseModel):
@@ -62,7 +77,7 @@ class RaceActionRecord(BaseModel):
     recommended_action: str
     user_action: LiveActionType
     followed_recommendation: bool
-    time_impact: float
+    time_impact: float | None = None  # None = not calculable, not fabricated as 0
 
 
 class RaceTimelineEntry(BaseModel):
@@ -101,6 +116,11 @@ class LiveRaceState(BaseModel):
     recommendation: EngineerResponse | None = None
     strategy: StrategyResult | None = None
     strategy_recalculation_count: int = 0
+    # State-machine tracking — not part of the public API contract but
+    # serialised so sessions survive round-trips through the API.
+    crossover_active: bool = False      # True while wetness >= _CROSSOVER_WETNESS_ENTER
+    degradation_warned: bool = False    # True once DEGRADATION_WARNING has fired this stint
+    degradation_critical: bool = False  # True once CRITICAL_TYRE_WEAR has fired this stint
 
 
 class LiveRaceStartResponse(BaseModel):

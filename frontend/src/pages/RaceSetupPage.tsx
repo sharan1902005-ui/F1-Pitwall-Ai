@@ -1,23 +1,37 @@
-import { Dice5, Loader2, Play } from "lucide-react";
+import { Dice5, Loader2, Play, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
 import { TyreBadge } from "../components/ui/TyreBadge";
 import { api, ApiError } from "../services/api";
 import { useRaceStore } from "../store/raceStore";
-import type { TyreCompound } from "../types/api";
+import type { DriverConfig, F1CircuitRead, MultiDriverRaceConfig, TyreCompound } from "../types/api";
+import type { PageId } from "../types/navigation";
 
 const compounds: TyreCompound[] = ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"];
 
-export function RaceSetupPage() {
-  const { circuits, setCircuits, raceConfig, setRaceConfig, setSimulation, setStrategy, setEngineer } = useRaceStore();
+function buildDefaultGrid(raceConfig: import("../types/api").RaceConfig): DriverConfig[] {
+  const laps = raceConfig.circuit.total_laps;
+  const mid = Math.round(laps * 0.48);
+  return [
+    { driver_id: "driver-a", driver_name: "Driver A", team_name: "Alpha", starting_compound: raceConfig.starting_compound, starting_fuel_kg: raceConfig.starting_fuel_kg, pace_factor: 0.99, degradation_factor: 1.0, strategy_mode: "MANUAL", strategy: [{ lap: mid, compound: "HARD" }] },
+    { driver_id: "driver-b", driver_name: "Driver B", team_name: "Beta", starting_compound: "SOFT", starting_fuel_kg: raceConfig.starting_fuel_kg, pace_factor: 1.01, degradation_factor: 1.05, strategy_mode: "MANUAL", strategy: [{ lap: Math.round(laps * 0.35), compound: "MEDIUM" }, { lap: Math.round(laps * 0.65), compound: "HARD" }] },
+    { driver_id: "driver-c", driver_name: "Driver C", team_name: "Gamma", starting_compound: "HARD", starting_fuel_kg: raceConfig.starting_fuel_kg, pace_factor: 1.0, degradation_factor: 0.95, strategy_mode: "MANUAL", strategy: [{ lap: Math.round(laps * 0.55), compound: "MEDIUM" }] },
+  ];
+}
+
+export function RaceSetupPage({ setPage }: { setPage?: (page: PageId) => void }) {
+  const { circuits, setCircuits, raceConfig, setRaceConfig, setSimulation, setStrategy, setEngineer, setMultiDriverSimulation } = useRaceStore();
   const [selectedCircuitId, setSelectedCircuitId] = useState<number | "">("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"single" | "multi" | false>(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [importedCircuits, setImportedCircuits] = useState<F1CircuitRead[]>([]);
 
   useEffect(() => {
     api.listCircuits().then(setCircuits).catch(() => setMessage("Circuit service unavailable."));
   }, [setCircuits]);
+
+  useEffect(() => { api.listImportedCircuits().then(setImportedCircuits).catch(() => undefined); }, []);
 
   async function loadCircuit(id: number) {
     setSelectedCircuitId(id);
@@ -26,8 +40,8 @@ export function RaceSetupPage() {
   }
 
   async function runSimulation() {
-    setLoading(true);
-    setMessage("SIMULATING 57 LAPS...");
+    setLoading("single");
+    setMessage("SIMULATING...");
     try {
       const [simulation, strategy] = await Promise.all([
         api.runSimulation(raceConfig),
@@ -42,6 +56,31 @@ export function RaceSetupPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function runMultiDriverRace() {
+    setLoading("multi");
+    setMessage("RUNNING MULTI-DRIVER RACE...");
+    try {
+      const multiConfig: MultiDriverRaceConfig = {
+        race_config: raceConfig,
+        drivers: buildDefaultGrid(raceConfig),
+        event_seed_state: raceConfig.weather_seed_state,
+      };
+      const result = await api.simulateMultiRace(multiConfig);
+      setMultiDriverSimulation({ config: multiConfig, result });
+      setMessage("Multi-driver race complete. Navigating to Live Simulation.");
+      setPage?.("simulation");
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "Multi-driver simulation failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applyRealCircuit(circuit: F1CircuitRead) {
+    setRaceConfig({ ...raceConfig, circuit: { ...raceConfig.circuit, circuit_name: circuit.name } });
+    setMessage("Real circuit name applied. Simulation values remain user-configurable.");
   }
 
   return (
@@ -59,6 +98,13 @@ export function RaceSetupPage() {
               {circuits.map((circuit) => (
                 <option key={circuit.id} value={circuit.id}>{circuit.name} - {circuit.country}</option>
               ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Imported Real Circuit Metadata</span>
+            <select defaultValue="" onChange={(event) => { const circuit = importedCircuits.find((item) => item.id === Number(event.target.value)); if (circuit) applyRealCircuit(circuit); }} className="mt-2 w-full rounded border border-white/10 bg-pit-panel2 px-3 py-3 text-white">
+              <option value="">Keep simulator circuit configuration</option>
+              {importedCircuits.map((circuit) => <option key={circuit.id} value={circuit.id}>{circuit.name} - {circuit.country}</option>)}
             </select>
           </label>
 
@@ -104,10 +150,16 @@ export function RaceSetupPage() {
             </label>
           </div>
 
-          <button disabled={loading} onClick={runSimulation} className="flex w-full items-center justify-center gap-2 rounded bg-pit-red px-5 py-4 text-sm font-black uppercase tracking-wide text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60">
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
-            Run Race Simulation
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button disabled={loading !== false} onClick={runSimulation} className="flex w-full items-center justify-center gap-2 rounded bg-pit-red px-5 py-4 text-sm font-black uppercase tracking-wide text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60">
+              {loading === "single" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5" />}
+              Run Race Simulation
+            </button>
+            <button disabled={loading !== false} onClick={runMultiDriverRace} className="flex w-full items-center justify-center gap-2 rounded bg-pit-blue px-5 py-4 text-sm font-black uppercase tracking-wide text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
+              {loading === "multi" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Users className="h-5 w-5" />}
+              Run Multi-Driver Race
+            </button>
+          </div>
           {message && <StatusPill tone={message.includes("failed") || message.includes("unavailable") ? "red" : "green"}>{message}</StatusPill>}
         </div>
       </Panel>

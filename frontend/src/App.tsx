@@ -12,6 +12,7 @@ import { StrategyLabPage } from "./pages/StrategyLabPage";
 import { WeatherPage } from "./pages/WeatherPage";
 import { EngineerPage } from "./pages/EngineerPage";
 import { CircuitsPage } from "./pages/CircuitsPage";
+import { HistoricalResultsPage } from "./pages/HistoricalResultsPage";
 import type { PageId } from "./types/navigation";
 
 function AppContent() {
@@ -23,7 +24,7 @@ function AppContent() {
 
   const pages: Record<PageId, ReactNode> = {
     dashboard: <DashboardPage setPage={setPage} />,
-    setup: <RaceSetupPage />,
+    setup: <RaceSetupPage setPage={setPage} />,
     simulation: <LiveSimulationPage setPage={setPage} />,
     liveRace: <LiveRaceControlPage setPage={setPage} />,
     competitive: <CompetitiveLabPage />,
@@ -32,6 +33,7 @@ function AppContent() {
     weather: <WeatherPage setPage={setPage} />,
     engineer: <EngineerPage setPage={setPage} />,
     circuits: <CircuitsPage setPage={setPage} />,
+    historical: <HistoricalResultsPage />,
   };
 
   return (

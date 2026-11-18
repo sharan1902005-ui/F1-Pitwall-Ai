@@ -58,7 +58,7 @@ const defaultDrivers: DriverConfig[] = [
 ];
 
 export function CompetitiveLabPage() {
-  const { raceConfig } = useRaceStore();
+  const { raceConfig, setMultiDriverSimulation } = useRaceStore();
   const [drivers, setDrivers] = useState<DriverConfig[]>(defaultDrivers);
   const [eventSeed, setEventSeed] = useState(7);
   const [result, setResult] = useState<MultiDriverRaceResult | null>(null);
@@ -87,6 +87,7 @@ export function CompetitiveLabPage() {
     try {
       const response = await api.simulateMultiRace(config);
       setResult(response);
+      setMultiDriverSimulation({ config, result: response });
       setReplayLap(response.total_laps);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Multi-driver simulation failed.");

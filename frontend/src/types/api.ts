@@ -23,7 +23,19 @@ export type RaceEventType =
   | "RAIN_INCREASE"
   | "RAIN_DECREASE"
   | "TRACK_TEMPERATURE_CHANGE"
-  | "TYRE_CROSSOVER";
+  | "TRACK_TEMP_RISING"
+  | "TRACK_TEMP_FALLING"
+  | "HOT_TRACK"
+  | "TYRE_CROSSOVER"
+  | "TYRE_CROSSOVER_APPROACHING"
+  | "TYRE_CROSSOVER_REACHED"
+  | "TYRE_CROSSOVER_CLEARED"
+  | "HIGH_TYRE_DEGRADATION_RISK"
+  | "DEGRADATION_WARNING"
+  | "CRITICAL_TYRE_WEAR"
+  | "TYRE_STATE_RECOVERED"
+  | "PIT_WINDOW_OPEN"
+  | "PIT_WINDOW_CLOSING";
 
 export interface CircuitConfig {
   circuit_name: string;
@@ -56,6 +68,68 @@ export interface CircuitRead {
   tyre_wear_factor: number;
   overtaking_difficulty: number;
   safety_car_factor: number;
+}
+
+export interface F1CircuitRead {
+  id: number;
+  source: string;
+  provider_circuit_id: string;
+  name: string;
+  city: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+  source_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface F1CircuitEventRead {
+  id: number;
+  source: string;
+  season: number;
+  round_number: number;
+  race_name: string;
+  race_date: string;
+}
+
+export interface F1DriverRead {
+  id: number; source: string; provider_driver_id: string; code: string | null; permanent_number: number | null;
+  given_name: string; family_name: string; date_of_birth: string | null; nationality: string | null; source_url: string | null; created_at: string; updated_at: string;
+}
+export interface F1ConstructorRead {
+  id: number; source: string; provider_constructor_id: string; name: string; nationality: string | null; source_url: string | null; created_at: string; updated_at: string;
+}
+
+export interface F1HistoricalResultRead {
+  id: number; source: string; position: number | null; position_text: string | null; grid_position: number | null; points: number | null; laps_completed: number | null; status: string | null; race_time_millis: number | null; race_time_text: string | null; fastest_lap_rank: number | null; fastest_lap_number: number | null; fastest_lap_time_seconds: number | null; fastest_lap_speed_kph: number | null; imported_at: string;
+  event: F1CircuitEventRead; driver: F1DriverRead; constructor: F1ConstructorRead;
+}
+export interface F1HistoricalSeasonSummary { season: number; events: number; results: number; }
+export interface F1HistoricalAnalyticsRead { season: number; races_used: number; driver_id: number | null; constructor_id: number | null; wins: number; podiums: number; points: number; classified_results: number; }
+export interface F1QualifyingResultRead { id: number; source: string; position: number; q1_seconds: number | null; q2_seconds: number | null; q3_seconds: number | null; imported_at: string; event: F1CircuitEventRead; driver: F1DriverRead; constructor: F1ConstructorRead; }
+export interface F1StartingGridRead { id: number; source: string; grid_position: number; imported_at: string; event: F1CircuitEventRead; driver: F1DriverRead; constructor: F1ConstructorRead; }
+export interface F1QualifyingAnalyticsRead { season: number; driver_id: number | null; constructor_id: number | null; samples: number; average_position: number | null; poles: number; grid_changes: number; }
+export interface F1HistoricalLapTimeRead { id: number; source: string; lap_number: number; position: number; lap_time_seconds: number; imported_at: string; event: F1CircuitEventRead; driver: F1DriverRead; }
+export interface F1HistoricalPitStopRead { id: number; source: string; stop_number: number; lap_number: number; time: string; duration_seconds: number; imported_at: string; event: F1CircuitEventRead; driver: F1DriverRead; }
+export interface F1HistoricalPerformanceAnalyticsRead { event_id: number; driver_id: number | null; lap_samples: number; average_lap_time_seconds: number | null; fastest_lap_seconds: number | null; slowest_lap_seconds: number | null; pit_stop_samples: number; average_pit_stop_duration_seconds: number | null; }
+export interface F1SeasonAnalyticsRead { season: number; imported_events: number; imported_results: number; classified_results: number; dnfs: number; driver_wins: Record<string, number>; constructor_points: Record<string, number>; }
+export interface F1HistoricalWeatherObservationRead { id: number; source: string; provider_meeting_key: number; provider_session_key: number; observed_at: string; air_temperature_celsius: number | null; track_temperature_celsius: number | null; humidity_percent: number | null; pressure_mbar: number | null; wind_speed_mps: number | null; wind_direction_degrees: number | null; rainfall: boolean | null; imported_at: string; event: F1CircuitEventRead; }
+export interface F1HistoricalWeatherSummaryRead { event_id: number; provider_session_key: number | null; observations: number; first_observed_at: string | null; last_observed_at: string | null; average_air_temperature_celsius: number | null; average_track_temperature_celsius: number | null; rainfall_observations: number; }
+export interface F1HistoricalStrategyBenchmarkRead {
+  source: string;
+  season: number | null;
+  event_id: number | null;
+  circuit_id: number | null;
+  races_used: number;
+  result_samples: number;
+  pit_stop_samples: number;
+  lap_samples: number;
+  average_pit_stops_per_race: number | null;
+  average_pit_stop_duration_seconds: number | null;
+  average_lap_time_seconds: number | null;
+  average_grid_to_finish_change: number | null;
+  note: string;
 }
 
 export interface WeatherState {
@@ -200,7 +274,7 @@ export interface RaceActionRecord {
   recommended_action: string;
   user_action: LiveActionType;
   followed_recommendation: boolean;
-  time_impact: number;
+  time_impact: number | null;
 }
 
 export interface RaceTimelineEntry {

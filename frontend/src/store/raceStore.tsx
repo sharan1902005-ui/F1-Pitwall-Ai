@@ -3,6 +3,8 @@ import type {
   CircuitRead,
   EngineerResponse,
   LiveRaceState,
+  MultiDriverRaceConfig,
+  MultiDriverRaceResult,
   RaceConfig,
   RaceResult,
   ScenarioResponse,
@@ -17,6 +19,7 @@ interface RaceState {
   engineer: EngineerResponse | null;
   scenario: ScenarioResponse | null;
   liveRace: LiveRaceState | null;
+  multiDriverSimulation: { config: MultiDriverRaceConfig; result: MultiDriverRaceResult } | null;
   setCircuits: (circuits: CircuitRead[]) => void;
   setRaceConfig: (config: RaceConfig) => void;
   setSimulation: (result: RaceResult | null) => void;
@@ -24,6 +27,7 @@ interface RaceState {
   setEngineer: (response: EngineerResponse | null) => void;
   setScenario: (response: ScenarioResponse | null) => void;
   setLiveRace: (state: LiveRaceState | null) => void;
+  setMultiDriverSimulation: (simulation: { config: MultiDriverRaceConfig; result: MultiDriverRaceResult } | null) => void;
 }
 
 const defaultRaceConfig: RaceConfig = {
@@ -51,6 +55,7 @@ export function RaceProvider({ children }: { children: React.ReactNode }) {
   const [engineer, setEngineer] = useState<EngineerResponse | null>(null);
   const [scenario, setScenario] = useState<ScenarioResponse | null>(null);
   const [liveRace, setLiveRace] = useState<LiveRaceState | null>(null);
+  const [multiDriverSimulation, setMultiDriverSimulation] = useState<{ config: MultiDriverRaceConfig; result: MultiDriverRaceResult } | null>(null);
 
   const value = useMemo(
     () => ({
@@ -61,6 +66,7 @@ export function RaceProvider({ children }: { children: React.ReactNode }) {
       engineer,
       scenario,
       liveRace,
+      multiDriverSimulation,
       setCircuits,
       setRaceConfig,
       setSimulation,
@@ -68,8 +74,9 @@ export function RaceProvider({ children }: { children: React.ReactNode }) {
       setEngineer,
       setScenario,
       setLiveRace,
+      setMultiDriverSimulation,
     }),
-    [circuits, raceConfig, simulation, strategy, engineer, scenario, liveRace],
+    [circuits, raceConfig, simulation, strategy, engineer, scenario, liveRace, multiDriverSimulation],
   );
 
   return <RaceContext.Provider value={value}>{children}</RaceContext.Provider>;

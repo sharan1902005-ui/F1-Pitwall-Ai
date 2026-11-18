@@ -8,4 +8,5 @@ export type PageId =
   | "strategy"
   | "weather"
   | "engineer"
-  | "circuits";
+  | "circuits"
+  | "historical";

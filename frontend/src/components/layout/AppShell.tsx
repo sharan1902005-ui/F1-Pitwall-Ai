@@ -10,6 +10,7 @@ import {
   Radio,
   Users,
   Crown,
+  History,
 } from "lucide-react";
 import type { PageId } from "../../types/navigation";
 import { StatusPill } from "../ui/StatusPill";
@@ -25,6 +26,7 @@ const navItems: Array<{ id: PageId; label: string; icon: React.ComponentType<{ c
   { id: "weather", label: "Weather", icon: CloudRain },
   { id: "engineer", label: "AI Race Engineer", icon: Bot },
   { id: "circuits", label: "Circuits", icon: Map },
+  { id: "historical", label: "Historical Results", icon: History },
 ];
 
 export function AppShell({

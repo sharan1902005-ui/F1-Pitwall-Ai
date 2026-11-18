@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DataStateBadge } from "../components/ui/DataStateBadge";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Panel } from "../components/ui/Panel";
 import { StatusPill } from "../components/ui/StatusPill";
@@ -16,6 +17,10 @@ import type {
   TrafficResponse,
   UndercutResponse,
   OvercutResponse,
+  F1CircuitEventRead,
+  F1CircuitRead,
+  F1HistoricalSeasonSummary,
+  F1HistoricalStrategyBenchmarkRead,
 } from "../types/api";
 
 export function StrategyLabPage({ setPage: _setPage }: { setPage: (page: PageId) => void }) {
@@ -50,6 +55,63 @@ export function StrategyLabPage({ setPage: _setPage }: { setPage: (page: PageId)
   const [engineerAdvice, setEngineerAdvice] = useState<EngineerResponse | null>(null);
   const [engineerAdviceLoading, setEngineerAdviceLoading] = useState(false);
   const [engineerAdviceError, setEngineerAdviceError] = useState<string | null>(null);
+
+  const [historicalBenchmark, setHistoricalBenchmark] = useState<F1HistoricalStrategyBenchmarkRead | null>(null);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
+  const [benchmarkError, setBenchmarkError] = useState<string | null>(null);
+  const [benchmarkSeason, setBenchmarkSeason] = useState<number | undefined>();
+  const [benchmarkEventId, setBenchmarkEventId] = useState<number | undefined>();
+  const [benchmarkCircuitId, setBenchmarkCircuitId] = useState<number | undefined>();
+  const [historicalSeasons, setHistoricalSeasons] = useState<F1HistoricalSeasonSummary[]>([]);
+  const [historicalEvents, setHistoricalEvents] = useState<F1CircuitEventRead[]>([]);
+  const [historicalCircuits, setHistoricalCircuits] = useState<F1CircuitRead[]>([]);
+  const [benchmarkFiltersLoading, setBenchmarkFiltersLoading] = useState(false);
+  const [benchmarkFiltersError, setBenchmarkFiltersError] = useState<string | null>(null);
+  const benchmarkRequestRef = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    setBenchmarkFiltersLoading(true);
+    setBenchmarkFiltersError(null);
+
+    Promise.all([api.listHistoricalResultSeasons(), api.listImportedCircuits()])
+      .then(([seasons, circuits]) => {
+        if (!active) return;
+        setHistoricalSeasons(seasons);
+        setHistoricalCircuits(circuits);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setBenchmarkFiltersError(err instanceof ApiError ? err.message : "Historical filters could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setBenchmarkFiltersLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setBenchmarkEventId(undefined);
+    setHistoricalEvents([]);
+
+    if (benchmarkSeason === undefined) return () => { active = false; };
+
+    api.listHistoricalResultEvents(benchmarkSeason)
+      .then((events) => { if (active) setHistoricalEvents(events); })
+      .catch((err: unknown) => {
+        if (active) setBenchmarkFiltersError(err instanceof ApiError ? err.message : "Historical events could not be loaded.");
+      });
+
+    return () => { active = false; };
+  }, [benchmarkSeason]);
+
+  useEffect(() => {
+    benchmarkRequestRef.current += 1;
+    setHistoricalBenchmark(null);
+    setBenchmarkError(null);
+  }, [benchmarkSeason, benchmarkEventId, benchmarkCircuitId]);
 
   async function analyzeUndercut() {
     setUndercutLoading(true);
@@ -296,6 +358,27 @@ export function StrategyLabPage({ setPage: _setPage }: { setPage: (page: PageId)
       );
     } finally {
       setEngineerAdviceLoading(false);
+    }
+  }
+
+  async function loadHistoricalBenchmark() {
+    const requestId = ++benchmarkRequestRef.current;
+    setBenchmarkLoading(true);
+    setBenchmarkError(null);
+
+    try {
+      const result = await api.historicalStrategyBenchmark({
+        season: benchmarkSeason,
+        eventId: benchmarkEventId,
+        circuitId: benchmarkCircuitId,
+      });
+      if (requestId === benchmarkRequestRef.current) setHistoricalBenchmark(result);
+    } catch (err) {
+      if (requestId === benchmarkRequestRef.current) {
+        setBenchmarkError(err instanceof ApiError ? err.message : "Historical benchmark could not be loaded.");
+      }
+    } finally {
+      if (requestId === benchmarkRequestRef.current) setBenchmarkLoading(false);
     }
   }
 
@@ -884,8 +967,97 @@ export function StrategyLabPage({ setPage: _setPage }: { setPage: (page: PageId)
         )}
       </Panel>
 
+      <Panel
+        className="order-8"
+        title="Historical Strategy Benchmark"
+        action={
+          <button
+            onClick={loadHistoricalBenchmark}
+            disabled={benchmarkLoading}
+            className="rounded bg-pit-blue px-4 py-2 text-sm font-black uppercase text-white disabled:opacity-60"
+          >
+            {benchmarkLoading ? <Loader2 className="inline h-4 w-4 animate-spin" /> : "Load Benchmark"}
+          </button>
+        }
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <StatusPill tone="blue">Historical Data</StatusPill>
+          <DataStateBadge state={historicalBenchmark?.races_used ? "available" : "not-imported"} />
+          <span className="text-xs text-slate-500">Imported records only — separate from the current simulation and AI recommendations.</span>
+        </div>
+
+        <div className="mb-5 grid gap-3 md:grid-cols-3">
+          <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Season
+            <select
+              value={benchmarkSeason ?? ""}
+              onChange={(event) => setBenchmarkSeason(event.target.value ? Number(event.target.value) : undefined)}
+              disabled={benchmarkFiltersLoading}
+              className="mt-1 block w-full rounded border border-white/10 bg-black/20 p-2 text-sm font-normal normal-case text-white"
+            >
+              <option value="">All imported seasons</option>
+              {historicalSeasons.map((season) => <option key={season.season} value={season.season}>{season.season}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Event
+            <select
+              value={benchmarkEventId ?? ""}
+              onChange={(event) => setBenchmarkEventId(event.target.value ? Number(event.target.value) : undefined)}
+              disabled={benchmarkFiltersLoading || benchmarkSeason === undefined}
+              className="mt-1 block w-full rounded border border-white/10 bg-black/20 p-2 text-sm font-normal normal-case text-white"
+            >
+              <option value="">All imported events</option>
+              {historicalEvents.map((event) => <option key={event.id} value={event.id}>{event.race_name} ({event.season})</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-bold uppercase tracking-wide text-slate-500">
+            Imported Circuit
+            <select
+              value={benchmarkCircuitId ?? ""}
+              onChange={(event) => setBenchmarkCircuitId(event.target.value ? Number(event.target.value) : undefined)}
+              disabled={benchmarkFiltersLoading}
+              className="mt-1 block w-full rounded border border-white/10 bg-black/20 p-2 text-sm font-normal normal-case text-white"
+            >
+              <option value="">All imported circuits</option>
+              {historicalCircuits.map((circuit) => <option key={circuit.id} value={circuit.id}>{circuit.name}, {circuit.country}</option>)}
+            </select>
+          </label>
+        </div>
+
+        {benchmarkFiltersError && <StatusPill tone="red">{benchmarkFiltersError}</StatusPill>}
+        {benchmarkError && (
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusPill tone="red">{benchmarkError}</StatusPill>
+            <button onClick={loadHistoricalBenchmark} className="rounded border border-pit-red/50 px-3 py-1 text-xs font-bold uppercase text-red-200">Retry</button>
+          </div>
+        )}
+
+        {historicalBenchmark ? historicalBenchmark.races_used > 0 ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-pit-blue/20 bg-pit-blue/5 p-4"><div className="text-xs uppercase text-slate-500">Imported Races</div><div className="mt-2 text-2xl font-black">{historicalBenchmark.races_used}</div></div>
+              <div className="rounded-lg border border-pit-blue/20 bg-pit-blue/5 p-4"><div className="text-xs uppercase text-slate-500">Result Samples</div><div className="mt-2 text-2xl font-black">{historicalBenchmark.result_samples}</div></div>
+              <div className="rounded-lg border border-pit-blue/20 bg-pit-blue/5 p-4"><div className="text-xs uppercase text-slate-500">Pit-Stop Samples</div><div className="mt-2 text-2xl font-black">{historicalBenchmark.pit_stop_samples}</div></div>
+              <div className="rounded-lg border border-pit-blue/20 bg-pit-blue/5 p-4"><div className="text-xs uppercase text-slate-500">Lap Samples</div><div className="mt-2 text-2xl font-black">{historicalBenchmark.lap_samples}</div></div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4"><div className="text-xs uppercase text-slate-500">Average Pit Stops / Race</div><div className="mt-2 text-xl font-black">{historicalBenchmark.average_pit_stops_per_race?.toFixed(2) ?? "Not recorded"}</div></div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4"><div className="text-xs uppercase text-slate-500">Recorded Stop Duration</div><div className="mt-2 text-xl font-black">{historicalBenchmark.average_pit_stop_duration_seconds !== null ? `${historicalBenchmark.average_pit_stop_duration_seconds.toFixed(3)}s` : "Not recorded"}</div></div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4"><div className="text-xs uppercase text-slate-500">Recorded Lap Time</div><div className="mt-2 text-xl font-black">{historicalBenchmark.average_lap_time_seconds !== null ? `${historicalBenchmark.average_lap_time_seconds.toFixed(3)}s` : "Not recorded"}</div></div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-4"><div className="text-xs uppercase text-slate-500">Grid-to-Finish Change</div><div className="mt-2 text-xl font-black">{historicalBenchmark.average_grid_to_finish_change?.toFixed(2) ?? "Not recorded"}</div></div>
+            </div>
+            <div className="rounded-lg border border-pit-blue/20 bg-pit-blue/5 p-4 text-sm text-slate-300">{historicalBenchmark.note}</div>
+          </div>
+        ) : (
+          <EmptyState title="No historical benchmark samples" message={historicalBenchmark.note} action={<button onClick={loadHistoricalBenchmark} className="rounded bg-pit-blue px-4 py-2 text-sm font-bold">Retry Benchmark</button>} />
+        ) : !benchmarkLoading && !benchmarkError ? (
+          <EmptyState title="Historical benchmark not loaded" message="Load imported historical data to compare coverage and recorded race statistics. This does not change the simulated strategy." action={<button onClick={loadHistoricalBenchmark} className="rounded bg-pit-blue px-4 py-2 text-sm font-bold">Load Benchmark</button>} />
+        ) : null}
+      </Panel>
+
       {strategy?.strategies.length ? (
-        <div className="order-8">
+        <div className="order-9">
         <Panel title="Backend Ranked Strategies">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-sm">
